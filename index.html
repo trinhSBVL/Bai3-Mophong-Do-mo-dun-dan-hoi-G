@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Thí Nghiệm Xác Định Mô Đun Đàn Hồi Trượt G</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
+    <style>
+        /* CHO PHÉP CUỘN MƯỢT GIỮA 2 TRANG */
+        html { scroll-behavior: smooth; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; 
+            background-color: #0f172a; overflow-y: auto; overflow-x: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        
+        /* ĐỊNH NGHĨA TRANG GIẤY ĐỘC LẬP (NHƯ A4) */
+        .a4-page {
+            width: 100vw;
+            height: 100vh; 
+            position: relative;
+        }
+
+        /* Ẩn nút tăng giảm mặc định của input number */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* TRANG 1: Giữ nguyên cấu trúc nguyên bản 100% của tác giả */
+        #app-container {
+            width: 100vw; height: 50vw; max-height: 100vh; max-width: 200vh;
+            margin: auto; position: absolute; top: 0; bottom: 0; left: 0; right: 0;
+            display: flex; background: #1e293b; box-shadow: 0 0 30px rgba(0,0,0,0.8); z-index: 2;
+        }
+        
+        #left-panel { width: 75%; height: 100%; display: flex; flex-direction: column; border-right: 2px solid #334155; position: relative;}
+        #right-panel { width: 25%; height: 100%; background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); color: white; padding: 15px; overflow-y: auto; box-shadow: inset 5px 0 15px rgba(0,0,0,0.3); display: flex; flex-direction: column;}
+        
+        #region-1 { width: 100%; height: 100%; position: relative; background: #64748b; overflow: hidden;}
+
+        /* TRANG 2: Căn lên góc trên (Chứa 4 khối lưới 2x2, mỗi ô 45vh) */
+        #page-2 {
+            display: flex; 
+            flex-wrap: wrap; 
+            justify-content: space-between; 
+            align-content: flex-start; 
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-top: 4px solid #3b82f6;
+            padding: 2vh 2vw; 
+            gap: 2vh 0; 
+        }
+
+        .quadrant {
+            height: 46vh; 
+            background: #0f172a; padding: 12px; 
+            border-radius: 12px; border: 1px solid #334155;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            overflow: hidden; 
+            display: flex; flex-direction: column;
+        }
+
+        /* COMPONENT GIAO DIỆN CON */
+        canvas { display: block; width: 100%; height: 100%; outline: none; }
+        
+        .data-card { background: rgba(51, 65, 85, 0.7); padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #3b82f6; font-size: 0.8rem; backdrop-filter: blur(4px); box-shadow: 0 2px 4px rgba(0,0,0,0.2);}
+        
+        .weight-btn {
+            background: linear-gradient(145deg, #475569, #334155);
+            border: 2px solid #64748b; border-radius: 50%; width: 45px; height: 45px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; cursor: pointer; transition: all 0.15s;
+            box-shadow: 3px 5px 8px rgba(0,0,0,0.5), inset 1px 1px 2px rgba(255,255,255,0.2);
+            user-select: none; font-size: 1rem;
+        }
+        .weight-btn:hover { background: #475569; transform: translateY(-2px); border-color: #94a3b8; box-shadow: 4px 6px 10px rgba(0,0,0,0.6), inset 1px 1px 2px rgba(255,255,255,0.3);}
+        .weight-btn:active { transform: translateY(1px); box-shadow: inset 3px 3px 6px rgba(0,0,0,0.6); }
+        .weight-btn.red { border-color: #ef4444; color: #fca5a5; }
+        .weight-btn.green { border-color: #10b981; color: #6ee7b7; }
+
+        /* HIỆU ỨNG NÚT CUỘN TRANG */
+        @keyframes bounceRight {
+            0%, 20%, 50%, 80%, 100% { transform: scale(0.7) translateY(0); }
+            40% { transform: scale(0.7) translateY(-15px); }
+            60% { transform: scale(0.7) translateY(-7px); }
+        }
+        .scroll-down-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            animation: bounceRight 2s infinite; z-index: 100; cursor: pointer;
+            background: rgba(15, 23, 42, 0.85); color: white; padding: 10px 30px;
+            border-radius: 30px; border: 1px solid #3b82f6; text-transform: uppercase;
+            font-weight: bold; font-size: 0.85rem; backdrop-filter: blur(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); text-decoration: none; 
+            display: flex; gap: 10px; align-items: center; transition: background 0.3s;
+            transform-origin: bottom right;
+        }
+        .scroll-down-btn:hover { background: #3b82f6; color: #fff; }
+
+        /* Tiện ích phân số */
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            margin: 0 4px;
+        }
+        .frac-top { border-bottom: 1px solid #94a3b8; padding: 0 4px; }
+        .frac-bot { padding: 0 4px; }
+        
+        /* Input cho các phép tính cuối */
+        .calc-input {
+            background-color: #0f172a;
+            border: 1px solid #475569;
+            color: #60a5fa;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-family: monospace;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .calc-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 5px rgba(59,130,246,0.5);
+        }
+        .calc-input.correct {
+            border-color: #22c55e;
+            color: #22c55e;
+            box-shadow: 0 0 8px rgba(34,197,94,0.3);
+        }
+        .calc-input.incorrect {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        /* Scrollbar cho Modal */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="overflow-hidden"> <!-- Khóa scroll ngoài khi có Modal -->
+
+<!-- ==========================================
+     MODAL: CƠ SỞ LÝ THUYẾT & HƯỚNG DẪN 
+     ========================================== -->
+<div id="theory-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md transition-opacity duration-300">
+    <div class="bg-slate-800 border-2 border-blue-500 rounded-xl shadow-[0_0_50px_rgba(59,130,246,0.3)] w-11/12 md:w-4/5 max-w-5xl h-[85vh] flex flex-col transform transition-transform duration-300 scale-100">
+        
+        <!-- Header -->
+        <div class="bg-slate-900 px-6 py-4 rounded-t-xl border-b border-slate-700 flex justify-between items-start md:items-center">
+            <div class="flex flex-col">
+                <h1 class="text-sm md:text-base font-bold text-slate-300 uppercase tracking-widest mb-1">Thí nghiệm xác định mô đun đàn hồi trượt G</h1>
+                <h2 class="text-xl md:text-2xl font-black text-blue-400 uppercase tracking-widest flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    Cơ Sở Lý Thuyết & Hướng Dẫn Thí Nghiệm
+                </h2>
+            </div>
+            <button id="btn_close_modal_cross" class="text-slate-400 hover:text-red-400 transition-colors mt-1 md:mt-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="p-6 overflow-y-auto custom-scrollbar flex-grow text-slate-200 text-sm md:text-base leading-relaxed">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Cột Lý Thuyết -->
+                <div>
+                    <h3 class="text-lg font-bold text-yellow-400 mb-3 border-b border-slate-600 pb-1">I. Cơ Sở Lý Thuyết</h3>
+                    <p class="mb-3">
+                        Thí nghiệm này nhằm xác định Mô đun đàn hồi trượt <strong class="text-white">G</strong> của vật liệu thép bằng phương pháp đo góc xoắn trên một trục chịu xoắn thuần túy. Từ đó kiểm tra lại mối liên hệ giữa E, μ và G theo lý thuyết.
+                    </p>
+                    <ul class="list-disc pl-5 space-y-3 mb-4 text-slate-300">
+                        <li>
+                            <strong class="text-blue-300">Mô men xoắn (M<sub>z</sub>):</strong> Khi treo quả cân có trọng lượng &Delta;P ở hai bên tay đòn a, trục chịu một mô men xoắn thuần túy:<br>
+                            <span class="inline-block mt-1 font-mono text-sm bg-slate-800 px-2 py-1 rounded text-yellow-300 border border-slate-600">&Delta;M<sub>z</sub> = 2 &times; &Delta;P &times; a</span>
+                        </li>
+                        <li>
+                            <strong class="text-blue-300">Mô men quán tính độc cực (J<sub>0</sub>):</strong> Tiết diện ngang của trục là hình vành khăn (ống rỗng) có đường kính ngoài D và trong d.<br>
+                            <div class="inline-flex mt-1 font-mono text-sm bg-slate-800 px-2 py-1.5 rounded text-yellow-300 border border-slate-600 items-center">
+                                J<sub>0</sub> = 
+                                <div class="fraction mx-1 text-white">
+                                    <span class="frac-top">&pi;(D<sup>4</sup> - d<sup>4</sup>)</span>
+                                    <span class="frac-bot">32</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li>
+                            <strong class="text-blue-300">Góc xoắn tương đối (&Delta;&varphi;<sub>MN</sub>):</strong> Là hiệu số góc xoay giữa hai mặt cắt M và N cách nhau một đoạn L.<br>
+                            <span class="inline-block mt-1 font-mono text-sm bg-slate-800 px-2 py-1 rounded text-yellow-300 border border-slate-600">&Delta;&varphi;<sub>MN</sub> = &varphi;<sub>M</sub> - &varphi;<sub>N</sub></span>
+                        </li>
+                        <li>
+                            <strong class="text-red-300">Công thức tính G thực nghiệm:</strong> Từ định luật Hooke về xoắn:<br>
+                            <div class="inline-flex mt-1 font-mono text-sm bg-slate-800 px-2 py-1.5 rounded text-yellow-300 border border-slate-600 items-center">
+                                G = 
+                                <div class="fraction mx-1 text-white">
+                                    <span class="frac-top">M<sub>z</sub> &times; L</span>
+                                    <span class="frac-bot">&Delta;&varphi;<sub>MN</sub> &times; J<sub>0</sub></span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Cột Hướng Dẫn -->
+                <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                    <h3 class="text-lg font-bold text-green-400 mb-3 border-b border-slate-600 pb-1">II. Trình Tự Thực Hiện</h3>
+                    <ol class="list-decimal pl-5 space-y-3 text-slate-300">
+                        <li>
+                            <strong class="text-white">Khởi tạo & Nhập kích thước:</strong> Bấm nút <span class="bg-blue-600 text-white px-1 py-0.5 rounded text-xs">Khởi Tạo</span>. Quan sát mô hình 3D để đọc các kích thước (D, d, L, a, b_M, b_N) và gõ chính xác vào bảng bên phải màn hình.
+                        </li>
+                        <li>
+                            <strong class="text-white">Ghi số liệu ban đầu (Tải = 0 kG):</strong> Cuộn xuống <strong>Trang 2</strong>, bấm nút <span class="bg-blue-600 text-white px-1 py-0.5 rounded text-xs">Ghi Tự Động</span> để máy tính lưu số đọc vạch chuẩn ban đầu.
+                        </li>
+                        <li>
+                            <strong class="text-white">Chất tải & Ghi số:</strong> 
+                            Trở lại màn hình 3D, bấm <span class="bg-green-600 text-white px-1 py-0.5 rounded text-xs">+2kG</span> sau đó bấm nút Đồng hồ 1, Đồng hồ 2 để đọc và ghi xuống trang dưới.
+                            <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                <li>Lần tải số 1, 3, 5: Sinh viên <strong>phải tự phóng to</strong> xem kim đồng hồ M, N và tự gõ số vạch đọc được vào bảng ở Trang 2. Bấm "Kiểm tra lỗi & Ghi".</li>
+                                <li>Lần tải số 2, 4, 6: Máy sẽ hỗ trợ ghi tự động.</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong class="text-white">Tính toán & Đánh giá:</strong> Khi ghi đủ bảng số liệu, sinh viên dựa vào dữ liệu để tự bấm máy tính các giá trị M_z, J_0, Δϕ_MN, G_TN và độ lệch sai số Δ%. Nhập kết quả vào các ô viền sáng. 
+                            <br><em class="text-[0.8rem] text-yellow-400">(Nhập đúng ô sẽ chuyển màu xanh, nhập sai báo màu đỏ).</em>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+            
+            <!-- Chú ý -->
+            <div class="mt-6 bg-red-900/30 border-l-4 border-red-500 p-3 rounded text-slate-300 text-[0.8rem]">
+                <strong class="text-red-400">Lưu ý cực kỳ quan trọng:</strong> 
+                Mỗi vạch trên đồng hồ tương ứng với 0.01(mm) dịch chuyển (hệ số khuếch đại k =100). Khi đọc đồng hồ, góc nhìn phải vuông góc với mặt số để tránh sai số Parallax. Sinh viên được phép sai số đọc đồng hồ là  0.2 vạch.
+            </div>
+        </div>
+
+        <!-- Footer / Checkbox -->
+        <div class="bg-slate-900 px-6 py-4 rounded-b-xl border-t border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
+            <label class="flex items-center gap-3 cursor-pointer group">
+                <input type="checkbox" id="chk_understood" class="w-5 h-5 rounded border-slate-500 text-blue-600 focus:ring-blue-500 bg-slate-800 cursor-pointer">
+                <span class="text-slate-300 font-bold group-hover:text-white transition-colors select-none">Tôi đã đọc kỹ cơ sở lý thuyết và hướng dẫn các bước.</span>
+            </label>
+            <button id="btn_start_sim" disabled class="bg-slate-600 text-slate-400 cursor-not-allowed px-6 py-2.5 rounded-lg font-black uppercase tracking-wider transition-all duration-300 border border-slate-500">
+                Vào Phòng Thí Nghiệm
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- ==========================================
+     PHẦN NỘI DUNG CHÍNH CỦA APP MÔ PHỎNG 
+     ========================================== -->
+<div class="a4-page" id="page-1">
+    <div id="app-container">
+        <div id="left-panel">
+            <div id="region-1">
+                <!-- NÚT GỌI LẠI MODAL LÝ THUYẾT NẰM Ở GÓC TRÊN BÊN PHẢI -->
+                <button id="btn_open_modal" style="position: absolute; top: 12px; right: 12px; z-index: 20;" class="bg-slate-800/80 hover:bg-slate-700 text-blue-400 text-[0.7rem] py-1.5 px-3 rounded-md transition-colors font-bold shadow-lg flex items-center gap-1.5 border border-blue-500/50 backdrop-blur-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    Xem Hướng Dẫn
+                </button>
+
+                <!-- TIÊU ĐỀ THÍ NGHIỆM TRONG SUỐT (THU NHỎ 1/2) -->
+                <div style="position: absolute; top: 15px; width: 100%; text-align: center; z-index: 10; pointer-events: none;">
+                    <h1 class="text-base md:text-lg font-black text-white uppercase tracking-widest" style="text-shadow: 0px 2px 4px rgba(0,0,0,0.8);">
+                        Thí nghiệm xác định mô đun đàn hồi trượt G
+                    </h1>
+                </div>
+
+                <!-- LOGO TRƯỜNG Ở GÓC TRÊN BÊN TRÁI ĐƯỢC VẼ BẰNG SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" style="position: absolute; top: 0; left: 0; z-index: 20; height: 55px; width: 55px;">
+                    <circle cx="100" cy="100" r="100" fill="#FDD835" />
+                    <circle cx="100" cy="100" r="95" fill="#1A237E" />
+                    <circle cx="100" cy="100" r="92" fill="#FFF9C4" />
+                    <circle cx="100" cy="100" r="68" fill="#1A237E" />
+                    <circle cx="100" cy="100" r="66" fill="#FDD835" />
+                    <circle cx="100" cy="100" r="60" fill="#1A237E" />
+
+                    <defs>
+                        <path id="top-arc" d="M 19,100 A 81,81 0 0,1 181,100" />
+                        <path id="bot-arc" d="M 181,100 A 81,81 0 0,1 19,100" />
+                    </defs>
+
+                    <text fill="#1A237E" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="10.8" letter-spacing="0.2">
+                        <textPath href="#top-arc" startOffset="50%" text-anchor="middle">TRƯỜNG ĐẠI HỌC GIAO THÔNG VẬN TẢI</textPath>
+                    </text>
+
+                    <text fill="#1A237E" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="8.5" letter-spacing="0.2">
+                        <textPath href="#bot-arc" startOffset="50%" text-anchor="middle">UNIVERSITY OF TRANSPORT AND COMMUNICATIONS</textPath>
+                    </text>
+
+                    <path d="M 45 130 C 60 140, 80 140, 100 130 L 100 138 C 80 148, 60 148, 45 138 Z" fill="#FDD835" />
+                    <path d="M 155 130 C 140 140, 120 140, 100 130 L 100 138 C 120 148, 140 148, 155 138 Z" fill="#FDD835" />
+                    <circle cx="100" cy="136" r="4" fill="#FDD835" />
+
+                    <path d="M 50 135 L 105 132 C 145 120, 140 80, 105 75 C 70 70, 70 45, 100 40 L 85 35 C 45 40, 50 80, 90 85 C 120 90, 120 115, 60 125 Z" fill="#FDD835" />
+                    
+                    <path d="M 77 133 C 125 120, 125 85, 95 80 C 65 75, 60 45, 92 38" fill="none" stroke="#1A237E" stroke-width="3.5" stroke-dasharray="10,6" />
+                </svg>
+
+                <div style="position:absolute; bottom:8px; left:8px; color:#f8fafc; font-size:12px; pointer-events:none; z-index:10; background:rgba(30, 41, 59, 0.7); padding:4px 8px; border-radius:6px; border: 1px solid #475569; backdrop-filter: blur(2px);">
+                    <span class="font-bold text-blue-400">Điều hướng 3D:</span> Chuột trái xoay | Lăn chuột thu phóng | Chuột phải dịch chuyển
+                </div>
+
+                <!-- CÁC NÚT ĐỌC ĐỒNG HỒ & TOÀN CẢNH CHUYỂN XUỐNG GÓC DƯỚI BÊN PHẢI -->
+                <div style="position: absolute; bottom: 15px; right: 15px; z-index: 20; display: flex; flex-direction: column; gap: 8px;">
+                    <button id="btn_cam_reset" class="bg-slate-700 hover:bg-slate-600 text-red-400 text-xs py-2 px-4 rounded-md transition-colors uppercase font-bold shadow-[0_0_15px_rgba(220,38,38,0.5)] flex items-center justify-center gap-2 border border-slate-500 backdrop-blur-sm bg-opacity-90">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        Toàn Cảnh
+                    </button>
+                    <button id="btn_cam_dial_M" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 px-4 rounded-md transition-colors uppercase font-bold shadow-[0_0_15px_rgba(37,99,235,0.6)] flex items-center gap-2 border border-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        Đồng Hồ 1 (M)
+                    </button>
+                    <button id="btn_cam_dial_N" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 px-4 rounded-md transition-colors uppercase font-bold shadow-[0_0_15px_rgba(37,99,235,0.6)] flex items-center gap-2 border border-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        Đồng Hồ 2 (N)
+                    </button>
+                </div>
+
+                <!-- BẢNG ĐIỀU KHIỂN TẢI TRỌNG NỔI (DỊCH SÁT VỀ NÚT ĐỌC ĐỒNG HỒ) -->
+                <div id="load-control-overlay" style="bottom: 15px; right: 155px;" class="absolute z-30 bg-slate-800/80 backdrop-blur-md border border-slate-600 rounded-2xl p-3 flex flex-col items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+                    <!-- Lớp phủ chặn khi chưa nhập kích thước -->
+                    <div id="load-overlay" class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-40 flex flex-col items-center justify-center rounded-2xl border border-slate-500 p-2 text-center transition-opacity">
+                        <div id="load-overlay-title" class="text-yellow-400 font-bold text-[0.75rem] mb-1 uppercase tracking-wide">Cần Khởi tạo Mẫu</div>
+                        <div id="load-overlay-desc" class="text-[0.65rem] text-slate-300">Hoàn thành bảng Kích thước bên phải</div>
+                    </div>
+
+                    <h3 class="text-yellow-400 font-bold mb-2 uppercase text-[0.65rem] tracking-wider border-b border-slate-600 pb-1 w-full text-center">Tải trọng (P) max 6kG</h3>
+                    <div class="flex gap-4 items-center">
+                        <div class="weight-btn red" id="btn_minus" title="Giảm 2kG">-2</div>
+                        <div class="text-2xl font-black w-14 text-center text-white drop-shadow-md"><span id="val_P">0</span><span class="text-[0.6rem] text-slate-400 font-normal ml-0.5">kG</span></div>
+                        <div class="weight-btn green" id="btn_plus" title="Thêm 2kG">+2</div>
+                    </div>
+                    <button id="btn_reset" class="mt-2 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-500 text-[0.6rem] py-1 px-4 rounded-full transition-colors uppercase font-bold tracking-wide shadow-inner">Hạ Tải Về 0</button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- CỘT BÊN PHẢI (BÁO CÁO & KÍCH THƯỚC) -->
+        <div id="right-panel">
+            <h2 class="text-base font-black text-center text-white mb-3 uppercase border-b-2 border-slate-600 pb-2 tracking-wide text-blue-400">Báo Cáo Thí Nghiệm</h2>
+            
+            <div class="data-card border-l-4 border-blue-500">
+                <div class="text-slate-400 text-[0.65rem] uppercase mb-0.5 font-bold">GV Hướng Dẫn</div>
+                <div class="text-white text-[0.85rem] font-bold">ThS. Vũ Ngọc Trinh</div>
+            </div>
+
+            <div class="data-card border-l-4 border-green-500">
+                <div class="text-slate-400 text-[0.65rem] uppercase mb-0.5 font-bold">Sinh viên thực hiện</div>
+                <input type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-1.5 py-1 text-white text-[0.75rem] focus:outline-none focus:border-green-400 transition-colors mt-0.5" placeholder="Nhập họ và tên...">
+            </div>
+
+            <div class="data-card border-l-4 border-yellow-500">
+                <div class="text-slate-400 text-[0.65rem] uppercase mb-0.5 font-bold">Lớp</div>
+                <input type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-1.5 py-1 text-white text-[0.75rem] focus:outline-none focus:border-yellow-400 transition-colors mt-0.5" placeholder="...">
+            </div>
+            
+            <div class="data-card border-l-4 border-red-500 mb-0">
+                <div class="text-slate-400 text-[0.65rem] uppercase mb-0.5 font-bold">Nhóm</div>
+                <input type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-1.5 py-1 text-white text-[0.75rem] focus:outline-none focus:border-red-400 transition-colors mt-0.5" placeholder="...">
+            </div>
+
+            <!-- BẢNG KÍCH THƯỚC ĐƯỢC DI CHUYỂN VÀO ĐÂY -->
+            <div class="mt-2 pt-3 border-t border-slate-600 flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <h3 class="text-blue-400 font-bold uppercase text-[0.75rem] tracking-wider">Kích thước mẫu (mm)</h3>
+                    <!-- Nút khởi tạo được làm lớn hơn -->
+                    <button id="btn_measure" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg font-bold uppercase transition-colors flex items-center gap-1.5 border border-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.3l3.03 2.73"/></svg>
+                        <span id="btn_measure_text">Khởi Tạo</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[0.7rem]">
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold">D:</span> 
+                        <input type="number" id="val_D" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold">d:</span> 
+                        <input type="number" id="val_d" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold">L:</span> 
+                        <input type="number" id="val_L" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold">a:</span> 
+                        <input type="number" id="val_a" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold text-[0.65rem]">bM:</span> 
+                        <input type="number" id="val_bM" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                    <div class="bg-slate-800 p-1.5 px-2 rounded border border-slate-700 flex justify-between items-center shadow-inner">
+                        <span class="text-slate-400 font-bold text-[0.65rem]">bN:</span> 
+                        <input type="number" id="val_bN" class="w-12 bg-slate-900 border border-slate-600 rounded text-center text-slate-500 font-mono focus:outline-none focus:border-blue-400 transition-colors" disabled placeholder="-">
+                    </div>
+                </div>
+                
+                <div class="mt-auto pt-3 text-center text-[0.65rem] text-slate-500 italic border-t border-slate-700">
+                    Quan sát mô hình 3D và điền chính xác thông số.
+                </div>
+            </div>
+
+            <!-- CÁC THÔNG SỐ ẨN ĐỂ ĐẢM BẢO LOGIC HOẠT ĐỘNG NGẦM -->
+            <div style="display: none;">
+                <span id="out_LM_text"></span>
+                <span id="out_absM">280.0</span>
+                <span id="out_vM">0.0</span>
+                <span id="out_phiM">0.000000</span>
+                <span id="out_absN">410.0</span>
+                <span id="out_vN">0.0</span>
+                <span id="out_phiN">0.000000</span>
+                <span id="out_phiMN">0.000000</span>
+                <span id="out_L_text"></span>
+                <span id="out_G">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <a href="#page-2" class="scroll-down-btn">
+        <span>Cuộn xuống Phân Tích</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+    </a>
+</div>
+
+<!-- TRANG 2: Chứa lưới 4 phần tư đã điều chỉnh lại tỷ lệ chiều ngang -->
+<div class="a4-page" id="page-2">
+
+    <!-- 1. Cột TRÁI TRÊN: Bảng Số Liệu (Được thu hẹp lại w-33%) -->
+    <div class="quadrant w-[33%] text-slate-200" id="table-container">
+        <div class="flex justify-between items-center mb-1 border-b border-slate-700 pb-1">
+            <h2 class="text-blue-400 text-[0.85rem] font-black uppercase tracking-wider border-l-4 border-blue-500 pl-2">Bảng Số Liệu</h2>
+            <div class="flex gap-1">
+                <button id="btn_record" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded shadow text-[0.6rem] transition-colors flex items-center gap-1 font-bold" title="Lần chẵn tự động, lần lẻ tự đọc số">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    <span id="btn_record_text">Ghi Tự Động</span>
+                </button>
+                <button id="btn_clear_table" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded shadow text-[0.6rem] transition-colors flex items-center gap-1 font-bold">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Xóa
+                </button>
+                <a href="#page-1" class="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded shadow text-[0.6rem] transition-colors flex items-center justify-center font-bold border border-slate-500">
+                    Lên trên
+                </a>
+            </div>
+        </div>
+        
+        <div class="flex-grow flex flex-col mt-1">
+            <table class="w-full h-full text-center border-collapse bg-slate-900 rounded-lg overflow-hidden shadow-md border border-slate-700 text-[0.65rem]">
+                <thead>
+                    <tr class="bg-slate-800 text-slate-300">
+                        <th class="border border-slate-700 py-1 w-8">Lần</th>
+                        <th class="border border-slate-700 py-1 w-10">Tải(kG)</th>
+                        <th class="border border-slate-700 py-1 w-12">Đọc M</th>
+                        <th class="border border-slate-700 py-1 text-blue-300">Δv<sub>M</sub></th>
+                        <th class="border border-slate-700 py-1 w-12">Đọc N</th>
+                        <th class="border border-slate-700 py-1 text-blue-300">Δv<sub>N</sub></th>
+                    </tr>
+                </thead>
+                <tbody id="data-table-body">
+                    <!-- Dữ liệu đổ vào từ JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Cột PHẢI TRÊN: Tính Toán G (Được mở rộng lên w-65%) -->
+    <div class="quadrant w-[65%] text-slate-200" id="g-calc-container">
+        <h2 class="text-blue-400 text-[0.95rem] font-black uppercase tracking-wider border-l-4 border-blue-500 pl-2 mb-2 border-b border-slate-700 pb-1">Tính Toán Mô Đun Đàn Hồi Trượt G</h2>
+        
+        <div class="flex h-full justify-between gap-2 text-[0.75rem]">
+            <!-- Nửa Trái: G Thực nghiệm (Mở rộng để không xuống dòng) -->
+            <div class="w-[58%] flex flex-col gap-1 bg-slate-800 p-1.5 rounded shadow-md border border-slate-600">
+                <h3 class="text-yellow-400 font-bold text-[0.8rem] border-b border-slate-700 pb-1 text-center">1. Theo Thực Nghiệm (SV tự tính)</h3>
+                
+                <div class="flex flex-col gap-0.5">
+                    <span class="text-slate-400 font-semibold italic text-[0.7rem]">a) Mô men xoắn (M<sub>z</sub>):</span>
+                    <div class="font-mono bg-slate-900 p-1.5 rounded flex items-center">
+                        M<sub>z</sub> = 2 &times; &Delta;P &times; a = 2 &times; <span class="text-yellow-300 mx-1">2</span> &times; <span id="calc_Mz_a" class="mx-1">a</span> = 
+                        <input type="number" id="inp_Mz" class="calc-input mx-1 w-16" placeholder="?">
+                        <span class="text-[0.6rem] text-slate-500">kG.mm</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-0.5 mt-1">
+                    <span class="text-slate-400 font-semibold italic text-[0.7rem]">b) Mô men quán tính độc cực (J<sub>0</sub>):</span>
+                    <div class="font-mono bg-slate-900 p-1.5 rounded flex items-center">
+                        J<sub>0</sub> = 
+                        <div class="fraction mx-1 text-slate-300">
+                            <span class="frac-top">&pi;(D<sup>4</sup> - d<sup>4</sup>)</span>
+                            <span class="frac-bot">32</span>
+                        </div>
+                        =
+                        <div class="fraction mx-1 text-blue-300">
+                            <span class="frac-top">&pi;(<span id="calc_D_sub">D</span><sup>4</sup> - <span id="calc_d_sub">d</span><sup>4</sup>)</span>
+                            <span class="frac-bot">32</span>
+                        </div>
+                        = <input type="number" id="inp_Ip" class="calc-input mx-1 w-20" placeholder="?"> 
+                        <span class="text-[0.6rem] text-slate-500">mm<sup>4</sup></span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-0.5 mt-auto">
+                    <span class="text-slate-400 font-semibold italic text-[0.7rem]">c) Trị số G<sub>TN</sub>:</span>
+                    <div class="font-mono bg-slate-900 p-1.5 rounded flex items-center flex-wrap">
+                        G<sub>TN</sub> = 
+                        <div class="fraction text-blue-300 mx-1">
+                            <span class="frac-top">M<sub>z</sub> &times; L</span>
+                            <span class="frac-bot">&varphi;<sub>MN</sub> &times; J<sub>0</sub></span>
+                        </div>
+                        &times; 100 = 
+                        <div class="fraction text-yellow-300 mx-1">
+                            <span class="frac-top"><span id="calc_Mz_sub">M_z</span> &times; <span id="calc_L_sub">L</span></span>
+                            <span class="frac-bot"><span id="calc_phiMN_sub">&varphi;</span> &times; <span id="calc_Ip_sub">J_0</span></span>
+                        </div>
+                        &times; 100 = 
+                        <input type="number" id="inp_Gtn" class="calc-input mx-1 w-24 font-bold text-[0.9rem]" placeholder="Nhập...">
+                        <span class="text-[0.55rem] text-slate-500 ml-1">daN/cm²</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nửa Phải: G Lý thuyết (Thu nhỏ) -->
+            <div class="w-[40%] flex flex-col gap-2 bg-slate-800 p-1.5 rounded shadow-md border border-slate-600">
+                <h3 class="text-yellow-400 font-bold text-[0.8rem] border-b border-slate-700 pb-1 text-center">2. Theo Lý Thuyết</h3>
+                
+                <div class="flex flex-col gap-1 text-slate-300 bg-slate-900 p-2 rounded font-mono text-[0.7rem]">
+                    <span class="text-blue-300 font-bold mb-1 border-b border-slate-700 pb-0.5">Vật liệu Thép:</span>
+                    <span>E = 2,000,000 <span class="text-[0.6rem] text-slate-500">daN/cm²</span></span>
+                    <span>&mu; = 0.33</span>
+                </div>
+
+                <div class="flex flex-col gap-1 mt-auto">
+                    <span class="text-slate-400 font-semibold italic text-[0.7rem]">Trị số G<sub>LT</sub>:</span>
+                    <div class="font-mono bg-slate-900 p-2 rounded flex flex-col items-center justify-center text-[0.8rem] gap-1">
+                        <div class="flex items-center">
+                            G<sub>LT</sub> = 
+                            <div class="fraction text-blue-300 mx-2">
+                                <span class="frac-top">E</span>
+                                <span class="frac-bot">2(1 + &mu;)</span>
+                            </div>
+                            =
+                        </div>
+                        <div>
+                            <span id="calc_Glt_res" class="text-green-400 font-black text-[1.1rem]">751,880</span>
+                            <span class="text-[0.6rem] text-slate-500 ml-1">daN/cm²</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Cột TRÁI DƯỚI: Góc Xoắn (Được thu hẹp w-33% và ép tỷ lệ) -->
+    <div class="quadrant w-[33%] text-slate-200" id="formula-container">
+        <h2 class="text-blue-400 text-[0.85rem] font-black uppercase tracking-wider border-l-4 border-blue-500 pl-2 mb-1 border-b border-slate-700 pb-1">Tính Góc Xoắn Trung Bình</h2>
+        
+        <div class="flex h-full gap-2 items-center text-[0.65rem]">
+            <!-- Cột trái chứa Góc M và N -->
+            <div class="flex flex-col w-[64%] gap-2 justify-center h-full">
+                <!-- Mặt cắt M -->
+                <div class="bg-slate-800 p-1.5 rounded border border-slate-600 shadow-md">
+                    <h3 class="text-yellow-400 font-bold mb-1 border-b border-slate-700 pb-0.5">Mặt cắt M</h3>
+                    <div class="flex items-center gap-0.5 font-mono flex-wrap">
+                        <span>&varphi;<sub>M</sub> &approx;</span>
+                        <div class="fraction text-blue-300">
+                            <span class="frac-top">&sum;&Delta;v<sub>M</sub></span>
+                            <span class="frac-bot">k &times; n &times; b<sub>M</sub></span>
+                        </div>
+                        <span>=</span>
+                        <div class="fraction text-green-400">
+                            <span class="frac-top" id="form_sum_M">0.0</span>
+                            <span class="frac-bot">100 &times; 6 &times; <span id="form_bM">b<sub>M</sub></span></span>
+                        </div>
+                        <span class="mt-1 w-full text-right font-bold flex items-center justify-end gap-1">
+                            = <input type="number" id="inp_phiM" class="calc-input w-20" placeholder="?"> rad
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Mặt cắt N -->
+                <div class="bg-slate-800 p-1.5 rounded border border-slate-600 shadow-md">
+                    <h3 class="text-yellow-400 font-bold mb-1 border-b border-slate-700 pb-0.5">Mặt cắt N</h3>
+                    <div class="flex items-center gap-0.5 font-mono flex-wrap">
+                        <span>&varphi;<sub>N</sub> &approx;</span>
+                        <div class="fraction text-blue-300">
+                            <span class="frac-top">&sum;&Delta;v<sub>N</sub></span>
+                            <span class="frac-bot">k &times; n &times; b<sub>N</sub></span>
+                        </div>
+                        <span>=</span>
+                        <div class="fraction text-green-400">
+                            <span class="frac-top" id="form_sum_N">0.0</span>
+                            <span class="frac-bot">100 &times; 6 &times; <span id="form_bN">b<sub>N</sub></span></span>
+                        </div>
+                        <span class="mt-1 w-full text-right font-bold flex items-center justify-end gap-1">
+                            = <input type="number" id="inp_phiN" class="calc-input w-20" placeholder="?"> rad
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cột phải chứa Góc tương đối nằm giữa (ép lại không gian) -->
+            <div class="w-[36%] bg-slate-800 rounded border border-red-900 border-l-4 border-l-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)] p-1 flex flex-col justify-center h-[90%]">
+                <h3 class="text-red-400 font-bold mb-2 border-b border-red-900 pb-1 text-center text-[0.6rem]">Góc Tương Đối</h3>
+                <div class="flex flex-col gap-1 items-center font-mono">
+                    <span class="bg-slate-900 px-1 py-1 rounded w-full text-center text-slate-300">&varphi;<sub>M</sub> - &varphi;<sub>N</sub></span>
+                    <span class="text-slate-400">&darr;</span>
+                    <span class="text-green-400 bg-slate-900 px-1 py-1 rounded w-full text-center text-[0.55rem]"><span id="form_sub_phiM">?</span><br>-<br><span id="form_sub_phiN">?</span></span>
+                    <span class="text-slate-400">&darr;</span>
+                    <input type="number" id="inp_phiMN" class="calc-input w-full shadow-inner font-black" placeholder="Nhập...">
+                    <span class="text-[0.5rem] text-slate-500">rad</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Cột PHẢI DƯỚI: Sai Số & Nhận Xét (Được mở rộng w-65%) -->
+    <div class="quadrant w-[65%] text-slate-200 overflow-hidden" id="analysis-container">
+        <div class="flex justify-between items-center mb-1.5 border-b border-slate-700 pb-1">
+            <h2 class="text-blue-400 text-[0.95rem] font-black uppercase tracking-wider border-l-4 border-blue-500 pl-2">Sai Số & Nhận Xét</h2>
+            <!-- Tính phần trăm sai số ngay trên thanh title -->
+            <div class="flex items-center gap-1 font-mono text-[0.7rem] bg-slate-800 px-2 py-0.5 rounded border border-slate-600">
+                <span class="font-bold text-yellow-400 uppercase mr-1">Độ lệch sai số:</span>
+                <span>&Delta;% =</span>
+                <div class="fraction text-blue-300">
+                    <span class="frac-top">|G<sub>LT</sub> - G<sub>TN</sub>|</span>
+                    <span class="frac-bot">G<sub>LT</sub></span>
+                </div>
+                <span>&times; 100% =</span>
+                <input type="number" id="inp_error" class="calc-input w-16 text-[0.8rem] font-black mx-1" placeholder="?">
+                <span>%</span>
+            </div>
+        </div>
+
+        <!-- Bảng Nguyên nhân & Biện pháp -->
+        <div class="grid grid-cols-2 gap-2 text-[0.7rem] mb-1.5 flex-grow">
+            <div class="bg-slate-800 p-1.5 rounded border border-slate-600 flex flex-col">
+                <span class="text-red-400 font-bold block mb-1">Nguyên nhân sai số:</span>
+                <textarea class="w-full flex-grow bg-slate-900 border border-slate-600 rounded p-1.5 text-white focus:outline-none focus:border-red-400 resize-none transition-colors custom-scrollbar" placeholder="Sinh viên tự đánh giá và ghi nhận xét..."></textarea>
+            </div>
+            <div class="bg-slate-800 p-1.5 rounded border border-slate-600 flex flex-col">
+                <span class="text-green-400 font-bold block mb-1">Biện pháp khắc phục:</span>
+                <textarea class="w-full flex-grow bg-slate-900 border border-slate-600 rounded p-1.5 text-white focus:outline-none focus:border-green-400 resize-none transition-colors custom-scrollbar" placeholder="Sinh viên tự đề xuất biện pháp..."></textarea>
+            </div>
+        </div>
+
+        <!-- Câu hỏi ôn tập (Ẩn mặc định) -->
+        <div id="review-wrapper" class="bg-slate-800 p-1.5 rounded border border-slate-600 text-[0.7rem] flex-shrink-0 flex flex-col justify-center min-h-[60px]">
+            <div id="review-placeholder" class="text-center text-slate-500 italic">
+                Hãy hoàn thành bảng tính toán và nhập đúng <span class="font-bold text-yellow-400">Độ lệch sai số</span> để mở khóa Câu hỏi ôn tập.
+            </div>
+            <div id="review-questions" class="hidden">
+                <span class="text-blue-300 font-bold block mb-0.5">Câu hỏi ôn tập:</span>
+                <ol class="list-decimal pl-4 text-slate-300 space-y-0.5">
+                    <li>Tại sao phải tiến hành chất tải và hạ tải theo từng cấp trọng lượng bằng nhau?</li>
+                    <li>Góc xoắn tương đối giữa 2 mặt cắt phụ thuộc vào những yếu tố vật lý và hình học nào?</li>
+                    <li>Nêu ý nghĩa thực tiễn của mô đun đàn hồi trượt G trong tính toán khả năng chịu lực của kết cấu trục?</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // === XỬ LÝ SỰ KIỆN CHO MODAL LÝ THUYẾT ===
+    const theoryModal = document.getElementById('theory-modal');
+    const chkUnderstood = document.getElementById('chk_understood');
+    const btnStartSim = document.getElementById('btn_start_sim');
+    const btnOpenModal = document.getElementById('btn_open_modal');
+    const btnCloseModalCross = document.getElementById('btn_close_modal_cross');
+
+    // Mở khóa nút Bắt đầu khi tích chọn
+    chkUnderstood.addEventListener('change', (e) => {
+        if(e.target.checked) {
+            btnStartSim.disabled = false;
+            btnStartSim.classList.remove('bg-slate-600', 'text-slate-400', 'cursor-not-allowed', 'border-slate-500');
+            btnStartSim.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500', 'border-blue-400', 'shadow-[0_0_15px_rgba(59,130,246,0.5)]');
+        } else {
+            btnStartSim.disabled = true;
+            btnStartSim.classList.add('bg-slate-600', 'text-slate-400', 'cursor-not-allowed', 'border-slate-500');
+            btnStartSim.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-500', 'border-blue-400', 'shadow-[0_0_15px_rgba(59,130,246,0.5)]');
+        }
+    });
+
+    // Đóng Modal (vào thực hành)
+    function closeModal() {
+        theoryModal.classList.remove('opacity-100');
+        theoryModal.classList.add('opacity-0');
+        theoryModal.querySelector('div').classList.remove('scale-100');
+        theoryModal.querySelector('div').classList.add('scale-95');
+        setTimeout(() => {
+            theoryModal.style.display = 'none';
+            document.body.classList.remove('overflow-hidden'); // Trả lại scroll cho trang web
+        }, 300);
+    }
+
+    btnStartSim.addEventListener('click', closeModal);
+    btnCloseModalCross.addEventListener('click', closeModal);
+
+    // Mở lại Modal
+    btnOpenModal.addEventListener('click', () => {
+        theoryModal.style.display = 'flex';
+        document.body.classList.add('overflow-hidden');
+        // Force reflow
+        void theoryModal.offsetWidth;
+        theoryModal.classList.remove('opacity-0');
+        theoryModal.classList.add('opacity-100');
+        theoryModal.querySelector('div').classList.remove('scale-95');
+        theoryModal.querySelector('div').classList.add('scale-100');
+    });
+
+    // LÕI VẬT LÝ THUẦN TÚY
+    const E = 2000000; // Đơn vị tính Glt đang là daN/cm2 (2,000,000)
+    const mu = 0.33; 
+    const G_lt_const = E / (2 * (1 + mu));
+    const G_true = G_lt_const / 100; // Nội bộ tính mô phỏng đang quy đổi hệ kG, mm
+    
+    const L_N_effective = 250; 
+    let L_M_effective = 450; 
+    let dist_MN = 200; 
+    const STD_a = 150; 
+
+    const tubeLength = 800; 
+    const loadArmX = 750;   
+    const pulleyR = 40; 
+    const FIXED_ARM_LENGTH = 150; 
+    const CLAMP_TOP = 610; 
+
+    let isMeasured = false;
+    let dimensionsValidated = false; // Cờ kiểm tra trạng thái nhập kích thước
+    let params = { D: 32, d: 30, L: 200, bM: 130, bN: 135, a: STD_a, P: 0 };
+    const init_M_mm = 2.80; // 280 vạch
+    const init_N_mm = 4.10; // 410 vạch
+
+    // BIẾN TOÀN CỤC CHO BẢNG CÔNG THỨC TRANG 2 VÀ ĐỐI CHIẾU
+    let sum_delta_M = 0;
+    let sum_delta_N = 0;
+    
+    let true_phiM = 0;
+    let true_phiN = 0;
+    let true_phiMN = 0;
+    let true_Mz = 0;
+    let true_Ip = 0;
+    let true_Gtn = 0;
+    let true_error = 0;
+
+    // --- SETUP MÔI TRƯỜNG THREE.JS ---
+    const container = document.getElementById('region-1');
+    const scene = new THREE.Scene();
+    
+    scene.background = new THREE.Color(0x64748b);
+    scene.fog = new THREE.FogExp2(0x64748b, 0.0002);
+    
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 1, 5000);
+    camera.position.set(1300, 700, 1100); 
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding; 
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+    renderer.toneMappingExposure = 1.1; 
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(400, 250, 0); 
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.1; 
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xaabbcc, 1.0);
+    scene.add(hemiLight);
+    
+    const dirLightMain = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLightMain.position.set(0, 1500, 1000);
+    dirLightMain.castShadow = true;
+    dirLightMain.shadow.mapSize.width = 2048;
+    dirLightMain.shadow.mapSize.height = 2048;
+    scene.add(dirLightMain);
+    
+    const dirLightBack = new THREE.DirectionalLight(0xccddff, 0.7);
+    dirLightBack.position.set(-800, 800, -1000);
+    scene.add(dirLightBack);
+
+    // --- VẬT LIỆU ---
+    const matStandBase = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.3 }); 
+    const matStandPillar = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.4 }); 
+    const matCrossBeam = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.5 }); 
+    const matClamp = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6, metalness: 0.2 }); 
+    const matLoadArms = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.5, metalness: 0.6 }); 
+    const matPulleyStand = new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.6, metalness: 0.3 }); 
+    const matPulleyWheel = new THREE.MeshStandardMaterial({ color: 0x0044ff, roughness: 0.3, metalness: 0.4 }); 
+    const matPan = new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.6, metalness: 0.2 });
+    const matSpecimen = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.15, metalness: 0.9, side: THREE.DoubleSide }); 
+    const matInnerTube = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7, metalness: 0.3, side: THREE.BackSide }); 
+    const matBlueStripe = new THREE.MeshStandardMaterial({ color: 0x0033cc, roughness: 0.4 });
+    const matBrass = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.95 }); 
+    const matDialStand = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8, metalness: 0.2 }); 
+    const matWire = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 }); 
+    const matWeights = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.85, metalness: 0.3 }); 
+    
+    const matNeedle = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+    function MeshPhysicalMaterialTransparent() {
+        return new THREE.MeshPhysicalMaterial({ 
+            color: 0xffffff, transmission: 0.95, opacity: 0.1, transparent: true, 
+            roughness: 0.1, metalness: 0.1, clearcoat: 0.1, clearcoatRoughness: 0.8
+        });
+    }
+    const glassMat = MeshPhysicalMaterialTransparent();
+
+    // --- SPRITE TEXT (ĐÃ ĐƯỢC LÀM SẮC NÉT GẤP ĐÔI) ---
+    function makeTextSprite(message, fontsize = 90) { 
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        // Tăng độ phân giải gốc của thẻ canvas lên gấp đôi để chữ cực kỳ sắc nét
+        canvas.width = 512; canvas.height = 256; 
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.beginPath(); ctx.roundRect(20, 20, canvas.width-40, canvas.height-40, 40); ctx.fill();
+        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 12; ctx.stroke();
+
+        ctx.font = `bold ${fontsize}px "Segoe UI", Arial`;
+        ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(message, canvas.width/2, canvas.height/2 + 8); 
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }); 
+        const sprite = new THREE.Sprite(spriteMaterial);
+        // Thu nhỏ kích thước hiển thị trên 3D để dồn điểm ảnh, giúp chữ sắc bén
+        sprite.scale.set(80, 40, 1.0); 
+        return sprite;
+    }
+
+    const dimsGroup = new THREE.Group();
+    scene.add(dimsGroup);
+
+    function createDimLine(p1, p2, text, colorHex, customTickSize = 15, textOffset = 25) {
+        const group = new THREE.Group();
+        const mat = new THREE.LineBasicMaterial({ color: colorHex, depthTest: false, transparent: true });
+        const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+        const line = new THREE.Line(geo, mat);
+        
+        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+        let perp = new THREE.Vector3(0, 1, 0); 
+        if (Math.abs(dir.y) > 0.9) perp.set(1, 0, 0); 
+        if (Math.abs(dir.z) > 0.9) perp.set(0, 1, 0); 
+        
+        const tickSize = customTickSize;
+        const tick1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3().copy(p1).addScaledVector(perp, tickSize),
+            new THREE.Vector3().copy(p1).addScaledVector(perp, -tickSize)
+        ]), mat);
+        
+        const tick2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3().copy(p2).addScaledVector(perp, tickSize),
+            new THREE.Vector3().copy(p2).addScaledVector(perp, -tickSize)
+        ]), mat);
+        
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        const sprite = makeTextSprite(text);
+        sprite.position.copy(mid).addScaledVector(perp, textOffset); 
+
+        line.renderOrder = 999; tick1.renderOrder = 999; tick2.renderOrder = 999; sprite.renderOrder = 1000;
+        group.add(line); group.add(tick1); group.add(tick2); group.add(sprite);
+        return group;
+    }
+
+    // HÀM VẼ ĐƯỜNG KÍNH CHUẨN CƠ KHÍ (Hỗ trợ tốt z_offset âm/dương để đảo chiều)
+    function createDiameterDim(x_pos, center_y, radius, text, z_offset, colorHex) {
+        const group = new THREE.Group();
+        const mat = new THREE.LineBasicMaterial({ color: colorHex, depthTest: false, transparent: true });
+        
+        const dir = Math.sign(z_offset) || 1; // Xác định hướng kéo ra
+        const overShoot = dir * 5;
+
+        // Đường gióng (kéo thẳng từ mép trên và mép dưới của ống vuông góc ra ngoài)
+        const topExt = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x_pos, center_y + radius, 0),
+            new THREE.Vector3(x_pos, center_y + radius, z_offset + overShoot)
+        ]), mat);
+        
+        const botExt = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x_pos, center_y - radius, 0),
+            new THREE.Vector3(x_pos, center_y - radius, z_offset + overShoot)
+        ]), mat);
+
+        // Đường kích thước (nối 2 đường gióng)
+        const dimLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x_pos, center_y + radius, z_offset),
+            new THREE.Vector3(x_pos, center_y - radius, z_offset)
+        ]), mat);
+
+        // Vẽ mũi tên ở 2 đầu
+        const tickSize = 5; const tickW = 2.5;
+        const topTick = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x_pos, center_y + radius - tickSize, z_offset - (dir*tickW)),
+            new THREE.Vector3(x_pos, center_y + radius, z_offset),
+            new THREE.Vector3(x_pos, center_y + radius - tickSize, z_offset + (dir*tickW))
+        ]), mat);
+        
+        const botTick = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x_pos, center_y - radius + tickSize, z_offset - (dir*tickW)),
+            new THREE.Vector3(x_pos, center_y - radius, z_offset),
+            new THREE.Vector3(x_pos, center_y - radius + tickSize, z_offset + (dir*tickW))
+        ]), mat);
+
+        const sprite = makeTextSprite(text);
+        // Đẩy nhãn ra xa đường kích thước thêm một chút
+        sprite.position.set(x_pos, center_y, z_offset + (dir * 25));
+
+        topExt.renderOrder = 999; botExt.renderOrder = 999; dimLine.renderOrder = 999; 
+        topTick.renderOrder = 999; botTick.renderOrder = 999; sprite.renderOrder = 1000;
+        
+        group.add(topExt); group.add(botExt); group.add(dimLine); 
+        group.add(topTick); group.add(botTick); group.add(sprite);
+        return group;
+    }
+
+    // --- CANVAS MẶT ĐỒNG HỒ ---
+    function createDialTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024; canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = '#cbd5e1'; ctx.fillRect(0, 0, 1024, 1024);
+        ctx.translate(512, 512);
+        
+        ctx.strokeStyle = '#000000'; ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(0, 0, 490, 0, Math.PI*2); ctx.stroke();
+        
+        for(let i=0; i<100; i++) {
+            ctx.save();
+            let angle = (i/100) * Math.PI * 2;
+            ctx.rotate(angle);
+            ctx.beginPath();
+            if(i % 10 === 0) {
+                ctx.lineWidth = 10; 
+                ctx.moveTo(0, -490); ctx.lineTo(0, -420);
+                ctx.translate(0, -350); ctx.rotate(-angle); 
+                ctx.font = 'bold 72px Arial';
+                ctx.fillText(i.toString(), 0, 0);
+            } else if(i % 5 === 0) {
+                ctx.lineWidth = 6; 
+                ctx.moveTo(0, -490); ctx.lineTo(0, -445);
+            } else {
+                ctx.lineWidth = 4; 
+                ctx.moveTo(0, -490); ctx.lineTo(0, -460);
+            }
+            ctx.stroke(); ctx.restore();
+        }
+        
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(0, 200, 130, -Math.PI * 0.8, -Math.PI * 0.2, false); 
+        ctx.stroke();
+        
+        for(let i=0; i<=5; i++) {
+            let angle = -Math.PI * 0.8 + i * (Math.PI * 0.6 / 5);
+            ctx.save();
+            ctx.translate(0, 200); ctx.rotate(angle);
+            ctx.lineWidth = 6; ctx.moveTo(130, 0); ctx.lineTo(95, 0); ctx.stroke();
+            
+            ctx.translate(70, 0); ctx.rotate(-angle);
+            ctx.font = 'bold 48px Arial'; ctx.fillText(i.toString(), 0, 0);
+            ctx.restore();
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        return texture;
+    }
+    
+    const matDialFace = new THREE.MeshBasicMaterial({ map: createDialTexture() });
+
+    const ringShape = new THREE.Shape();
+    ringShape.absarc(0, 0, 19, 0, Math.PI * 2, false); 
+    const ringHole = new THREE.Path();
+    ringHole.absarc(0, 0, 16, 0, Math.PI * 2, true);   
+    ringShape.holes.push(ringHole);
+
+    const rectStrapShape = new THREE.Shape();
+    rectStrapShape.moveTo(-4.5, -9.5); rectStrapShape.lineTo(4.5, -9.5);
+    rectStrapShape.lineTo(4.5, 9.5); rectStrapShape.lineTo(-4.5, 9.5);
+    const rectStrapHole = new THREE.Path();
+    rectStrapHole.moveTo(-2.7, -7.7); rectStrapHole.lineTo(2.7, -7.7);
+    rectStrapHole.lineTo(2.7, 7.7); rectStrapHole.lineTo(-2.7, 7.7);
+    rectStrapShape.holes.push(rectStrapHole);
+
+    // --- KHUNG GIÁ ĐỠ ---
+    const standGroup = new THREE.Group(); scene.add(standGroup);
+    
+    const base = new THREE.Mesh(new THREE.RoundedBoxGeometry(950, 50, 400, 4, 10), matStandBase);
+    base.position.set(400, 25, 0); standGroup.add(base);
+    
+    const pillarL = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 460, 64), matStandPillar);
+    pillarL.position.set(50, 280, 0); standGroup.add(pillarL);
+    
+    const pillarR = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 460, 64), matStandPillar);
+    pillarR.position.set(750, 280, 0); standGroup.add(pillarR);
+    
+    const crossBeam = new THREE.Mesh(new THREE.RoundedBoxGeometry(860, 60, 80, 4, 4), matCrossBeam);
+    crossBeam.position.set(400, 480, 0); standGroup.add(crossBeam);
+    
+    const clampLeft = new THREE.Mesh(new THREE.RoundedBoxGeometry(70, 100, 80, 4, 4), matClamp);
+    clampLeft.position.set(0, 560, 0);
+    const weld = new THREE.Mesh(new THREE.RoundedBoxGeometry(76, 6, 86, 2, 2), matStandPillar);
+    weld.position.set(0, -48, 0); clampLeft.add(weld);
+    standGroup.add(clampLeft);
+
+    // --- MẪU THỬ ---
+    const tubeGeo = new THREE.CylinderGeometry(16, 16, tubeLength, 1024, 1, true);
+    tubeGeo.rotateZ(Math.PI/2); tubeGeo.translate(tubeLength/2, 0, 0); 
+    const basePositions = new Float32Array(tubeGeo.attributes.position.array);
+    const specimen = new THREE.Mesh(tubeGeo, matSpecimen); scene.add(specimen); 
+    
+    const innerTubeGeo = new THREE.CylinderGeometry(15, 15, tubeLength, 256, 1, true);
+    innerTubeGeo.rotateZ(Math.PI/2); innerTubeGeo.translate(tubeLength/2, 0, 0);
+    specimen.add(new THREE.Mesh(innerTubeGeo, matInnerTube));
+
+    const stripeGeo = new THREE.BoxGeometry(tubeLength, 2, 2, 100, 1, 1);
+    stripeGeo.translate(tubeLength/2, 16.5, 0);
+    const baseStripePositions = new Float32Array(stripeGeo.attributes.position.array);
+    const stripe = new THREE.Mesh(stripeGeo, matBlueStripe); specimen.add(stripe);
+
+    // --- HỆ THỐNG GIA TẢI ---
+    const loadSystem = new THREE.Group(); loadSystem.position.set(loadArmX, 0, 0); scene.add(loadSystem);
+
+    const ringLoadGeo = new THREE.ExtrudeGeometry(ringShape, { depth: 15, bevelEnabled: false, curveSegments: 128 });
+    ringLoadGeo.translate(0, 0, -7.5);
+    const ringLoad = new THREE.Mesh(ringLoadGeo, matLoadArms); ringLoad.rotateY(Math.PI/2); loadSystem.add(ringLoad);
+
+    const armFLen = 160 - 19; 
+    const loadArmGeo = new THREE.RoundedBoxGeometry(5, 15, armFLen, 4, 1.5); loadArmGeo.translate(0, 0, armFLen / 2); 
+    const loadArmF = new THREE.Mesh(loadArmGeo, matLoadArms); loadArmF.position.set(0, 0, 19); loadSystem.add(loadArmF);
+    const loadArmB = new THREE.Mesh(loadArmGeo, matLoadArms); loadArmB.position.set(0, 0, -19); loadArmB.rotation.y = Math.PI; loadSystem.add(loadArmB);
+
+    const rectStrapGeo = new THREE.ExtrudeGeometry(rectStrapShape, { depth: 4, bevelEnabled: true, bevelSegments: 2, bevelSize: 0.5, bevelThickness: 0.5 });
+    rectStrapGeo.translate(0, 0, -2); 
+    loadSystem.add(new THREE.Mesh(rectStrapGeo, matStandPillar));
+    loadSystem.add(new THREE.Mesh(rectStrapGeo, matStandPillar));
+
+    // --- CỤM RÒNG RỌC ---
+    const pulleySystem = new THREE.Group(); scene.add(pulleySystem);
+    const bracketGroup = new THREE.Group(); pulleySystem.add(bracketGroup);
+
+    const pulleyWheel = new THREE.Group();
+    const rim1 = new THREE.Mesh(new THREE.CylinderGeometry(pulleyR+2, pulleyR+2, 3, 1024), matPulleyWheel); rim1.position.z = -6; rim1.rotateX(Math.PI/2);
+    const rim2 = new THREE.Mesh(new THREE.CylinderGeometry(pulleyR+2, pulleyR+2, 3, 1024), matPulleyWheel); rim2.position.z = 6; rim2.rotateX(Math.PI/2);
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(pulleyR, pulleyR, 10, 1024), matPulleyWheel); core.rotateX(Math.PI/2);
+    pulleyWheel.add(rim1); pulleyWheel.add(rim2); pulleyWheel.add(core); pulleySystem.add(pulleyWheel);
+
+    bracketGroup.add(new THREE.Mesh(new THREE.RoundedBoxGeometry(20, 60, 5, 4, 1), matPulleyStand).translateY(-20).translateZ(-12));
+    bracketGroup.add(new THREE.Mesh(new THREE.RoundedBoxGeometry(20, 60, 5, 4, 1), matPulleyStand).translateY(-20).translateZ(12));
+    bracketGroup.add(new THREE.Mesh(new THREE.RoundedBoxGeometry(20, 8, 30, 4, 2), matPulleyStand).translateY(-54));
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 34, 32), matDialStand); axle.rotateX(Math.PI/2); bracketGroup.add(axle);
+    bracketGroup.add(new THREE.Mesh(new THREE.RoundedBoxGeometry(15, 15, 80, 4, 3), matPulleyStand).translateY(-54).translateZ(40));
+    bracketGroup.add(new THREE.Mesh(new THREE.SphereGeometry(14, 64, 64), matPulleyStand).translateY(-54).translateZ(80));
+    const supportCol = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 700, 64), matPulleyStand); scene.add(supportCol);
+
+    // --- HỆ QUANG TREO ---
+    const plateGeo = new THREE.CylinderGeometry(45, 45, 5, 128);
+    const weightGeo = new THREE.CylinderGeometry(45, 45, 10, 128); 
+    
+    const wireFront = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 32), matWire); const plateFront = new THREE.Mesh(plateGeo, matPan); 
+    scene.add(wireFront); scene.add(plateFront);
+    const wireUp = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 32), matWire); scene.add(wireUp);
+    pulleySystem.add(new THREE.Mesh(new THREE.TorusGeometry(pulleyR, 1.2, 32, 1024, Math.PI), matWire));
+    const wireDown = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 32), matWire); const plateBack = new THREE.Mesh(plateGeo, matPan); 
+    scene.add(wireDown); scene.add(plateBack);
+    const groundPlateF = new THREE.Mesh(plateGeo, matPan); scene.add(groundPlateF);
+    const groundPlateB = new THREE.Mesh(plateGeo, matPan); scene.add(groundPlateB);
+
+    let weightsF = []; let weightsB = [];
+    for(let i=0; i<3; i++) {
+        let wF = new THREE.Mesh(weightGeo, matWeights); scene.add(wF); weightsF.push(wF);
+        let wB = new THREE.Mesh(weightGeo, matWeights); scene.add(wB); weightsB.push(wB);
+    }
+
+    // --- TAY ĐÒN ĐO ĐỒNG HỒ ---
+    const measureSystem = new THREE.Group(); scene.add(measureSystem); 
+
+    function createArmGroup() {
+        const group = new THREE.Group();
+        const ringGeo = new THREE.ExtrudeGeometry(ringShape, { depth: 15, bevelEnabled: false, curveSegments: 128 });
+        ringGeo.translate(0, 0, -7.5); 
+        const ring = new THREE.Mesh(ringGeo, matBrass); ring.rotateY(Math.PI/2); group.add(ring);
+        const armGeo = new THREE.RoundedBoxGeometry(5, 15, FIXED_ARM_LENGTH, 4, 1.5); armGeo.translate(0, 0, FIXED_ARM_LENGTH / 2);
+        const arm = new THREE.Mesh(armGeo, matBrass); group.add(arm);
+        return { root: group, ring: ring, arm: arm };
+    }
+
+    const armM = createArmGroup(); armM.root.position.x = L_M_effective; measureSystem.add(armM.root);
+    const armN = createArmGroup(); armN.root.position.x = L_N_effective; measureSystem.add(armN.root);
+
+    // --- CỤM ĐỒNG HỒ ĐO ---
+    function createDialAndStand() {
+        const group = new THREE.Group();
+        const dialCore = new THREE.Group();
+        
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, 15, 128), matDialStand); body.rotateX(Math.PI/2); dialCore.add(body);
+        const bezelFront = new THREE.Mesh(new THREE.TorusGeometry(25, 1.5, 32, 128), matPulleyWheel); bezelFront.position.z = 7.5; dialCore.add(bezelFront);
+        const bezelBack = new THREE.Mesh(new THREE.TorusGeometry(24, 1, 32, 128), matDialStand); bezelBack.position.z = -7.5; dialCore.add(bezelBack);
+        const face = new THREE.Mesh(new THREE.CircleGeometry(24.5, 128), matDialFace); face.position.z = 7.6; dialCore.add(face);
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 45, 32), matDialStand); stem.position.y = -22.5; dialCore.add(stem);
+
+        const plungerGroup = new THREE.Group();
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), matSpecimen); tip.position.y = 1; 
+        const taper = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1, 10, 32), matSpecimen); taper.position.y = 6;
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 45, 32), matSpecimen); rod.position.y = 33.5;
+        plungerGroup.add(tip); plungerGroup.add(taper); plungerGroup.add(rod);
+        plungerGroup.position.y = -58; dialCore.add(plungerGroup);
+        
+        const centerPin = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 2, 32), matDialStand); centerPin.rotateX(Math.PI/2); centerPin.position.z = 8; dialCore.add(centerPin);
+
+        const needleL = new THREE.Mesh(new THREE.ConeGeometry(1.2, 22, 32), matNeedle); 
+        needleL.position.set(0, 11, 8); 
+        const pivotL = new THREE.Group(); pivotL.add(needleL); dialCore.add(pivotL);
+        
+        const smallPin = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 2, 32), matDialStand); smallPin.rotateX(Math.PI/2); smallPin.position.set(0, -10, 8); dialCore.add(smallPin);
+
+        const needleS = new THREE.Mesh(new THREE.ConeGeometry(1.0, 6.5, 32), matNeedle);
+        needleS.position.set(0, 3.25, 8.5); 
+        const pivotS = new THREE.Group(); pivotS.position.set(0, -10, 0); pivotS.add(needleS); dialCore.add(pivotS);
+        
+        const glass = new THREE.Mesh(new THREE.CylinderGeometry(24.8, 24.8, 0.5, 64), glassMat); glass.rotateX(Math.PI/2); glass.position.z = 9.5; dialCore.add(glass);
+
+        group.add(dialCore);
+
+        const standZ_edge = -28; 
+        const joint = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 12, 32), matDialStand); joint.rotateZ(Math.PI/2); joint.position.set(0, 0, standZ_edge); group.add(joint);
+        const standVert = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 1, 32), matDialStand); standVert.position.set(0, 0, standZ_edge); group.add(standVert);
+        const standBase = new THREE.Mesh(new THREE.RoundedBoxGeometry(24, 15, 24, 4, 2), matDialStand); standBase.position.set(0, 0, standZ_edge); group.add(standBase);
+        const standHoriz = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 1, 64), matDialStand); standHoriz.rotateX(Math.PI/2); group.add(standHoriz);
+
+        return { root: group, dialCore: dialCore, plunger: plungerGroup, nL: pivotL, nS: pivotS, standHoriz: standHoriz, standVert: standVert, standBase: standBase, standZ_edge: standZ_edge };
+    }
+
+    const dialM = createDialAndStand(); scene.add(dialM.root);
+    const dialN = createDialAndStand(); scene.add(dialN.root);
+
+    // --- CAMERA ANIMATION ---
+    let isAnimatingCamera = false;
+    let camTargetPos = new THREE.Vector3(); let camTargetLook = new THREE.Vector3();
+
+    document.getElementById('btn_cam_reset').addEventListener('click', () => {
+        camTargetPos.set(1300, 700, 1100); camTargetLook.set(400, 250, 0); isAnimatingCamera = true;
+    });
+    document.getElementById('btn_cam_dial_M').addEventListener('click', () => {
+        let tubeY = CLAMP_TOP - 20 - params.D / 2; let dialY = tubeY + 62;
+        camTargetPos.set(L_M_effective, dialY, params.bM + 80); camTargetLook.set(L_M_effective, dialY, params.bM); isAnimatingCamera = true;
+    });
+    document.getElementById('btn_cam_dial_N').addEventListener('click', () => {
+        let tubeY = CLAMP_TOP - 20 - params.D / 2; let dialY = tubeY + 62;
+        camTargetPos.set(L_N_effective, dialY, params.bN + 80); camTargetLook.set(L_N_effective, dialY, params.bN); isAnimatingCamera = true;
+    });
+
+    // =========================================================
+    // LÕI TÍNH TOÁN CẬP NHẬT 3D VÀ UI (ĐÃ SỬA THÀNH NHẬP THỦ CÔNG)
+    // =========================================================
+    function randomizeDimensions() {
+        if(params.P > 0) { alert("Vui lòng hạ hết tải trọng về 0 trước khi đo kích thước mẫu mới!"); return; }
+        
+        // Random ra kích thước thực tế
+        params.D = 32 + Math.floor(Math.random() * 9); params.d = params.D - 2;
+        params.L = 100 + Math.floor(Math.random() * 61) * 5; 
+        params.bM = 120 + Math.floor(Math.random() * 6) * 5; 
+        params.bN = 120 + Math.floor(Math.random() * 6) * 5; 
+        params.a = STD_a; 
+        
+        isMeasured = true;
+        dimensionsValidated = false; // Đặt lại cờ xác nhận nhập kích thước
+        
+        // Mở khóa các ô nhập liệu thay vì điền sẵn
+        ['D', 'd', 'L', 'bM', 'bN', 'a'].forEach(f => {
+            let el = document.getElementById('val_' + f); 
+            el.value = ""; // Xóa trắng
+            el.disabled = false;
+            el.classList.remove('border-green-500', 'text-green-400');
+            el.classList.add('border-slate-600', 'text-blue-300');
+        });
+
+        dimsGroup.visible = true; // Hiện lại đường gióng
+
+        // Reset các Input Toán ở phần Phân Tích
+        ['inp_phiM', 'inp_phiN', 'inp_phiMN', 'inp_Mz', 'inp_Ip', 'inp_Gtn', 'inp_error'].forEach(id => {
+            let el = document.getElementById(id);
+            if(el) {
+                el.value = "";
+                el.classList.remove('correct', 'incorrect');
+            }
+        });
+        
+        // Đóng lại phần câu hỏi ôn tập
+        document.getElementById('review-placeholder').classList.remove('hidden');
+        document.getElementById('review-questions').classList.add('hidden');
+        document.querySelectorAll('textarea').forEach(ta => ta.value = '');
+
+        // Cập nhật giao diện thông báo
+        document.getElementById('load-overlay').style.display = 'flex';
+        document.getElementById('load-overlay').style.opacity = '1';
+        document.getElementById('load-overlay-title').innerText = "CẦN KHỞI TẠO MẪU";
+        document.getElementById('load-overlay-desc').innerText = "Hoàn thành bảng Kích thước bên phải";
+
+        const btn = document.getElementById('btn_measure');
+        btn.classList.add('bg-green-600', 'border-green-400');
+        document.getElementById('btn_measure_text').innerText = "Đã Đổi Mẫu";
+        setTimeout(() => {
+            btn.classList.remove('bg-green-600', 'border-green-400');
+            document.getElementById('btn_measure_text').innerText = "Khởi Tạo";
+        }, 1500);
+
+        currentStep = 0; initTable(); updatePhysicsAndUI();
+    }
+    document.getElementById('btn_measure').addEventListener('click', randomizeDimensions);
+
+    // Lắng nghe sự kiện người dùng nhập liệu vào các ô kích thước
+    ['D', 'd', 'L', 'bM', 'bN', 'a'].forEach(f => {
+        document.getElementById('val_' + f).addEventListener('input', checkDimensionsInput);
+    });
+
+    function checkDimensionsInput() {
+        if (!isMeasured) return;
+        let allCorrect = true;
+        
+        ['D', 'd', 'L', 'bM', 'bN', 'a'].forEach(f => {
+            let el = document.getElementById('val_' + f);
+            let val = parseFloat(el.value);
+            
+            if (val === params[f]) {
+                el.classList.replace('border-slate-600', 'border-green-500');
+                el.classList.replace('text-blue-300', 'text-green-400');
+            } else {
+                el.classList.replace('border-green-500', 'border-slate-600');
+                el.classList.replace('text-green-400', 'text-blue-300');
+                allCorrect = false;
+            }
+        });
+
+        // Nếu tất cả nhập đúng -> Ẩn đường gióng và Overlay
+        if (allCorrect && !dimensionsValidated) {
+            dimensionsValidated = true;
+            dimsGroup.visible = false; // Ẩn đường kích thước trên 3D
+            document.getElementById('load-overlay').style.opacity = '0';
+            setTimeout(() => document.getElementById('load-overlay').style.display = 'none', 300);
+            updateFormulaUI(); // Cập nhật tham số a, D, d cho bảng công thức
+        } else if (!allCorrect) {
+            dimensionsValidated = false;
+            dimsGroup.visible = true; // Hiện lại nếu lỡ tay xóa
+            document.getElementById('load-overlay').style.display = 'flex';
+            setTimeout(() => document.getElementById('load-overlay').style.opacity = '1', 10);
+        }
+    }
+
+    function updatePhysicsAndUI() {
+        dist_MN = params.L; L_M_effective = L_N_effective + params.L;
+
+        // Cập nhật thông số ẩn sâu tính toán
+        let effective_P = isMeasured ? params.P : 0;
+        let T = 2 * effective_P * STD_a; 
+        let Ip = (Math.PI/32) * (Math.pow(params.D, 4) - Math.pow(params.d, 4)); 
+        
+        let phiM_true = (T * L_M_effective) / (G_true * Ip); 
+        let phiN_true = (T * L_N_effective) / (G_true * Ip); 
+        
+        let deltaV_M_mm = params.bM * Math.tan(phiM_true); 
+        let deltaV_N_mm = params.bN * Math.tan(phiN_true);
+
+        let vachM_read = Math.round(deltaV_M_mm * 1000) / 10;
+        let vachN_read = Math.round(deltaV_N_mm * 1000) / 10;
+
+        let phiM_calc = (vachM_read * 0.01) / params.bM;
+        let phiN_calc = (vachN_read * 0.01) / params.bN;
+        let phiMN_calc = phiM_calc - phiN_calc;
+        let G_calc = (phiMN_calc > 0 && effective_P > 0) ? ((T * dist_MN) / (phiMN_calc * Ip)) * 100 : 0;
+
+        let abs_M = 280 - vachM_read;
+        let abs_N = 410 - vachN_read;
+        
+        // Vẫn cho phép cập nhật Data ẨN để hệ thống auto-check hoạt động
+        document.getElementById('out_LM_text').innerText = isMeasured ? L_M_effective : "---";
+        document.getElementById('out_L_text').innerText = isMeasured ? params.L : "---";
+        document.getElementById('val_P').innerText = params.P;
+
+        document.getElementById('out_absM').innerText = isMeasured ? abs_M.toFixed(1) : "280.0";
+        document.getElementById('out_vM').innerText = isMeasured ? vachM_read.toFixed(1) : "0.0";
+        document.getElementById('out_phiM').innerText = isMeasured ? phiM_calc.toFixed(6) : "0.000000";
+        
+        document.getElementById('out_absN').innerText = isMeasured ? abs_N.toFixed(1) : "410.0";
+        document.getElementById('out_vN').innerText = isMeasured ? vachN_read.toFixed(1) : "0.0";
+        document.getElementById('out_phiN').innerText = isMeasured ? phiN_calc.toFixed(6) : "0.000000";
+        
+        document.getElementById('out_phiMN').innerText = isMeasured ? phiMN_calc.toFixed(6) : "0.000000";
+        document.getElementById('out_G').innerText = (effective_P === 0 || !isMeasured) ? "0" : Math.round(G_calc);
+
+        update3D(phiM_true, phiN_true, deltaV_M_mm, deltaV_N_mm);
+    }
+
+    function update3D(phiM, phiN, dvM, dvN) {
+        const VISUAL_SCALE = 25; 
+        let visualPhiM = phiM * VISUAL_SCALE; let visualPhiN = phiN * VISUAL_SCALE;
+        let effective_P = isMeasured ? params.P : 0;
+        let visualPhiMax = ((2 * effective_P * STD_a * tubeLength) / (G_true * ((Math.PI/32)*(Math.pow(params.D,4)-Math.pow(params.d,4))))) * VISUAL_SCALE;
+
+        let tubeR = params.D / 2; tubeGeo.parameters.radiusTop = tubeR; tubeGeo.parameters.radiusBottom = tubeR;
+        stripe.position.y = tubeR + 0.5; let tubeY = CLAMP_TOP - 20 - tubeR;
+        
+        specimen.position.y = tubeY; loadSystem.position.y = tubeY; measureSystem.position.y = tubeY;
+        
+        let scaleRing = tubeR / 16;
+        armM.ring.scale.set(scaleRing, scaleRing, 1); armN.ring.scale.set(scaleRing, scaleRing, 1);
+        let ringOuterR = 19 * scaleRing; let armLenDyn = FIXED_ARM_LENGTH - ringOuterR;
+        armM.arm.scale.z = armLenDyn / (FIXED_ARM_LENGTH - 19); armM.arm.position.z = ringOuterR;
+        armN.arm.scale.z = armLenDyn / (FIXED_ARM_LENGTH - 19); armN.arm.position.z = ringOuterR;
+
+        loadSystem.children[0].scale.set(scaleRing, scaleRing, 1);
+        let armFLenDyn = 160 - ringOuterR;
+        loadSystem.children[1].scale.z = armFLenDyn / (160 - 19); loadSystem.children[1].position.z = ringOuterR;
+        loadSystem.children[2].scale.z = armFLenDyn / (160 - 19); loadSystem.children[2].position.z = -ringOuterR;
+
+        armM.root.position.x = L_M_effective; dialM.root.position.set(L_M_effective, tubeY + 62, 0);
+        armM.root.rotation.x = visualPhiM; armN.root.rotation.x = visualPhiN; loadSystem.rotation.x = visualPhiMax; 
+
+        loadSystem.children[3].position.set(0, 0, STD_a); loadSystem.children[4].position.set(0, 0, -STD_a);
+
+        dialM.dialCore.position.z = params.bM;
+        let spanM = params.bM - dialM.standZ_edge; dialM.standHoriz.scale.y = spanM; dialM.standHoriz.position.set(0, 0, dialM.standZ_edge + spanM / 2);
+        dialN.root.position.set(L_N_effective, tubeY + 62, 0); dialN.dialCore.position.z = params.bN;
+        let spanN = params.bN - dialN.standZ_edge; dialN.standHoriz.scale.y = spanN; dialN.standHoriz.position.set(0, 0, dialN.standZ_edge + spanN / 2);
+
+        let localBaseY = (510 + 7.5) - (tubeY + 62); 
+        dialM.standBase.position.y = localBaseY; dialM.standVert.scale.y = Math.abs(localBaseY); dialM.standVert.position.y = localBaseY / 2; 
+        dialN.standBase.position.y = localBaseY; dialN.standVert.scale.y = Math.abs(localBaseY); dialN.standVert.position.y = localBaseY / 2;
+
+        let curM = init_M_mm - dvM; let curN = init_N_mm - dvN;
+        dialM.nL.rotation.z = - (curM % 1) * Math.PI * 2; dialN.nL.rotation.z = - (curN % 1) * Math.PI * 2;
+        let maxAngle = Math.PI * 0.3; 
+        dialM.nS.rotation.z = maxAngle - ((curM % 5) / 5) * (maxAngle * 2); dialN.nS.rotation.z = maxAngle - ((curN % 5) / 5) * (maxAngle * 2);
+        
+        dialM.plunger.position.y = (7.5 * Math.cos(visualPhiM) - params.bM * Math.sin(visualPhiM)) - 62;
+        dialN.plunger.position.y = (7.5 * Math.cos(visualPhiN) - params.bN * Math.sin(visualPhiN)) - 62;
+
+        let pulleyY = tubeY + 108; let fixed_x_pulley = loadArmX - pulleyR; let fixed_z_pulley = -STD_a; 
+        pulleySystem.position.set(fixed_x_pulley, pulleyY, fixed_z_pulley);
+        supportCol.position.set(fixed_x_pulley, 400, fixed_z_pulley + 80); 
+
+        let tipFrontY = tubeY - STD_a * Math.sin(visualPhiMax); let tipBackY = tubeY + STD_a * Math.sin(visualPhiMax);
+        let curFrontZ = STD_a * Math.cos(visualPhiMax); let curBackZ = -STD_a * Math.cos(visualPhiMax);
+
+        let plateFrontY = 200; let lenFront = tipFrontY - plateFrontY;
+        wireFront.scale.y = lenFront; wireFront.quaternion.set(0,0,0,1); 
+        wireFront.position.set(loadArmX, tipFrontY - lenFront/2, curFrontZ); plateFront.position.set(loadArmX, plateFrontY, curFrontZ);
+
+        let ropeVector = new THREE.Vector3(fixed_x_pulley + pulleyR - loadArmX, pulleyY - tipBackY, fixed_z_pulley - curBackZ);
+        wireUp.scale.y = ropeVector.length(); wireUp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ropeVector.clone().normalize());
+        wireUp.position.set(loadArmX + ropeVector.x/2, tipBackY + ropeVector.y/2, curBackZ + ropeVector.z/2);
+
+        let dropX = fixed_x_pulley - pulleyR; let plateBackY = plateFrontY - (tipBackY - tubeY); let lenDown = pulleyY - plateBackY;
+        wireDown.scale.y = lenDown; wireDown.quaternion.set(0,0,0,1);
+        wireDown.position.set(dropX, pulleyY - lenDown/2, fixed_z_pulley); plateBack.position.set(dropX, plateBackY, fixed_z_pulley);
+
+        deformTube(visualPhiMax);
+        
+        let groundY = 52.5; groundPlateF.position.set(loadArmX, groundY, curFrontZ); groundPlateB.position.set(dropX, groundY, fixed_z_pulley); 
+        
+        let numWeights = params.P / 2; 
+        for(let i=0; i<3; i++) {
+            if(i < numWeights) {
+                weightsF[i].position.set(loadArmX, plateFrontY + 8 + i*11, curFrontZ); weightsB[i].position.set(dropX, plateBackY + 8 + i*11, fixed_z_pulley);
+            } else {
+                let floorIdx = i - numWeights;
+                weightsF[i].position.set(loadArmX, groundY + 8 + floorIdx*11, curFrontZ); weightsB[i].position.set(dropX, groundY + 8 + floorIdx*11, fixed_z_pulley);
+            }
+        }
+        
+        while(dimsGroup.children.length > 0){ dimsGroup.remove(dimsGroup.children[0]); }
+        // Chỉ vẽ đường gióng khi đang đo và CHƯA nhập đúng hoàn toàn
+        if (isMeasured && effective_P === 0 && !dimensionsValidated) {
+            const dimColor = 0xdc2626; // Màu đỏ đậm cho tất cả đường gióng
+            // Gán thẳng Value vào chuỗi Text hiển thị
+            dimsGroup.add(createDimLine(new THREE.Vector3(L_N_effective, tubeY - 35, 0), new THREE.Vector3(L_M_effective, tubeY - 35, 0), `L = ${params.L}`, dimColor));
+            dimsGroup.add(createDimLine(new THREE.Vector3(L_M_effective, tubeY - 30, 0), new THREE.Vector3(L_M_effective, tubeY - 30, params.bM), `bM = ${params.bM}`, dimColor));
+            dimsGroup.add(createDimLine(new THREE.Vector3(L_N_effective, tubeY - 30, 0), new THREE.Vector3(L_N_effective, tubeY - 30, params.bN), `bN = ${params.bN}`, dimColor));
+            
+            // Vẽ D và d ngược hướng nhau dọc theo trục Z. 
+            // D hướng ra mặt trước (+Z), d hướng ra mặt sau (-Z)
+            dimsGroup.add(createDiameterDim(715, tubeY, params.D/2, `D = ${params.D}`, 70, dimColor));
+            dimsGroup.add(createDiameterDim(785, tubeY, params.d/2, `d = ${params.d}`, -70, dimColor));
+            
+            dimsGroup.add(createDimLine(new THREE.Vector3(loadArmX, tubeY + 45, 0), new THREE.Vector3(loadArmX, tubeY + 45, STD_a), `a = ${params.a}`, dimColor));
+        }
+    }
+
+    function deformTube(maxVisualAngle) {
+        const pos = tubeGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            let x = basePositions[i * 3]; let y = basePositions[i * 3 + 1]; let z = basePositions[i * 3 + 2];
+            let angle = (x / tubeLength) * maxVisualAngle;
+            let scaleR = (params.D/2) / 16;
+            pos.setXYZ(i, x, (y * Math.cos(angle) - z * Math.sin(angle)) * scaleR, (y * Math.sin(angle) + z * Math.cos(angle)) * scaleR); 
+        }
+        pos.needsUpdate = true; tubeGeo.computeVertexNormals();
+
+        const sPos = stripe.geometry.attributes.position;
+        for(let i=0; i<sPos.count; i++) {
+            let x = baseStripePositions[i*3]; let y = baseStripePositions[i*3+1]; let z = baseStripePositions[i*3+2];
+            let angle = (x / tubeLength) * maxVisualAngle; let scaleR = (params.D/2) / 16;
+            sPos.setXYZ(i, x, (y * Math.cos(angle) - z * Math.sin(angle)) * scaleR, (y * Math.sin(angle) + z * Math.cos(angle)) * scaleR); 
+        }
+        sPos.needsUpdate = true;
+    }
+
+    document.getElementById('btn_plus').addEventListener('click', () => {
+        if(!dimensionsValidated) { alert("Bạn cần thực hiện nhập đúng 100% kích thước ở bước 'Đo Kích Thước' trước khi bắt đầu chất tải!"); return; }
+        if(params.P < 6) { params.P += 2; updatePhysicsAndUI(); }
+    });
+    document.getElementById('btn_minus').addEventListener('click', () => {
+        if(!dimensionsValidated) return; if(params.P > 0) { params.P -= 2; updatePhysicsAndUI(); }
+    });
+    document.getElementById('btn_reset').addEventListener('click', () => { params.P = 0; updatePhysicsAndUI(); });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    function animate() { 
+        requestAnimationFrame(animate); 
+        if (isAnimatingCamera) {
+            camera.position.lerp(camTargetPos, 0.08); controls.target.lerp(camTargetLook, 0.08);
+            if (camera.position.distanceTo(camTargetPos) < 2.0 && controls.target.distanceTo(camTargetLook) < 2.0) isAnimatingCamera = false;
+        }
+        controls.update(); renderer.render(scene, camera); 
+    }
+    updatePhysicsAndUI(); animate();
+
+    // =========================================================
+    // LOGIC CHO BẢNG SỐ LIỆU VÀ CÔNG THỨC TRANG 2 (NHẬP TƯƠNG TÁC)
+    // =========================================================
+    const targetLoads = [0, 2, 4, 6, 4, 2, 0];
+    let currentStep = 0;
+
+    function initTable() {
+        const tbody = document.getElementById('data-table-body');
+        tbody.innerHTML = '';
+        targetLoads.forEach((load, idx) => {
+            let tr = document.createElement('tr');
+            tr.id = `row_${idx}`;
+            
+            // Các lần lẻ (1, 3, 5) sẽ yêu cầu người dùng nhập
+            let isManual = (idx % 2 !== 0);
+            
+            let htmlReadM = isManual 
+                ? `<input type="number" id="inp_m_read_${idx}" class="w-12 bg-slate-800 border border-slate-600 rounded text-center text-blue-300 focus:outline-none focus:border-blue-400" disabled>` 
+                : `<span id="m_read_${idx}">-</span>`;
+                
+            let htmlReadN = isManual 
+                ? `<input type="number" id="inp_n_read_${idx}" class="w-12 bg-slate-800 border border-slate-600 rounded text-center text-blue-300 focus:outline-none focus:border-blue-400" disabled>` 
+                : `<span id="n_read_${idx}">-</span>`;
+
+            tr.innerHTML = `
+                <td class="border border-slate-700 py-1 font-medium">${idx}</td>
+                <td class="border border-slate-700 py-1 font-bold text-yellow-400">${load}</td>
+                <td class="border border-slate-700 py-1 font-mono" id="cell_m_read_${idx}">${htmlReadM}</td>
+                <td class="border border-slate-700 py-1 font-mono text-blue-300" id="m_delta_${idx}">-</td>
+                <td class="border border-slate-700 py-1 font-mono" id="cell_n_read_${idx}">${htmlReadN}</td>
+                <td class="border border-slate-700 py-1 font-mono text-blue-300" id="n_delta_${idx}">-</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        sum_delta_M = 0;
+        sum_delta_N = 0;
+        current_phi_mn = 0;
+        updateFormulaUI();
+        updateTableHighlight();
+    }
+
+    function updateTableHighlight() {
+        targetLoads.forEach((load, idx) => {
+            let tr = document.getElementById(`row_${idx}`);
+            let isManual = (idx % 2 !== 0);
+            
+            if(idx < currentStep) {
+                tr.className = "bg-slate-800 text-slate-400 transition-colors";
+            } else if(idx === currentStep) {
+                tr.className = "bg-slate-700 text-white font-bold transition-colors shadow-[inset_0_0_10px_rgba(59,130,246,0.5)]";
+                if(isManual) {
+                    document.getElementById(`inp_m_read_${idx}`).disabled = false;
+                    document.getElementById(`inp_n_read_${idx}`).disabled = false;
+                    document.getElementById(`inp_m_read_${idx}`).focus();
+                    document.getElementById('btn_record_text').innerText = "Kiểm Tra & Ghi";
+                } else {
+                    document.getElementById('btn_record_text').innerText = "Ghi Tự Động";
+                }
+            } else {
+                tr.className = "bg-slate-900/50 text-slate-600 transition-colors";
+            }
+        });
+    }
+
+    function updateFormulaUI() {
+        if (!dimensionsValidated) return;
+        
+        // 1. Tính toán giá trị chuẩn ẩn bên trong hệ thống
+        true_phiM = sum_delta_M / (100 * 6 * params.bM);
+        true_phiN = sum_delta_N / (100 * 6 * params.bN);
+        true_phiMN = true_phiM - true_phiN;
+
+        let dP = 2; // Bước tải
+        true_Mz = 2 * dP * params.a;
+        true_Ip = (Math.PI / 32) * (Math.pow(params.D, 4) - Math.pow(params.d, 4));
+        true_Gtn = (true_phiMN > 0) ? ((true_Mz * params.L) / (true_phiMN * true_Ip)) * 100 : 0;
+        true_error = (true_Gtn > 0) ? Math.abs(G_lt_const - true_Gtn) / G_lt_const * 100 : 0;
+
+        // 2. Cập nhật các thông số trung gian (hiển thị)
+        document.getElementById('form_sum_M').innerText = sum_delta_M.toFixed(1);
+        document.getElementById('form_bM').innerText = params.bM;
+        document.getElementById('form_sum_N').innerText = sum_delta_N.toFixed(1);
+        document.getElementById('form_bN').innerText = params.bN;
+        document.getElementById('calc_Mz_a').innerText = params.a;
+        document.getElementById('calc_D_sub').innerText = params.D;
+        document.getElementById('calc_d_sub').innerText = params.d;
+        document.getElementById('calc_L_sub').innerText = params.L;
+
+        // 3. Cập nhật biến True Value cho bộ kiểm tra Input
+        trueVals['inp_phiM'].val = true_phiM;
+        trueVals['inp_phiN'].val = true_phiN;
+        trueVals['inp_phiMN'].val = true_phiMN;
+        trueVals['inp_Mz'].val = true_Mz;
+        trueVals['inp_Ip'].val = true_Ip;
+        trueVals['inp_Gtn'].val = true_Gtn;
+        trueVals['inp_error'].val = true_error;
+    }
+
+    // Biến toàn cục lưu cấu hình kiểm tra Input
+    let trueVals = {
+        'inp_phiM': { val: 0, mode: 'angle', tol: 0.0001 },
+        'inp_phiN': { val: 0, mode: 'angle', tol: 0.0001 },
+        'inp_phiMN': { val: 0, mode: 'angle', tol: 0.0001 },
+        'inp_Mz': { val: 0, mode: 'exact', tol: 1.0 },
+        'inp_Ip': { val: 0, mode: 'relative', tol: 0.05 }, // Sai số 5% khi sinh viên dùng Pi = 3.14
+        'inp_Gtn': { val: 0, mode: 'relative', tol: 0.05 }, // Sai số làm tròn cho phép 5%
+        'inp_error': { val: 0, mode: 'exact', tol: 1.0 } // Chênh lệch 1% điểm phần trăm
+    };
+
+    // Hàm thiết lập event listener chỉ chạy 1 lần lúc khởi tạo
+    function initValidationListeners() {
+        Object.keys(trueVals).forEach(id => {
+            let el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', () => {
+                let val = parseFloat(el.value);
+                if(isNaN(val)) {
+                    el.classList.remove('correct', 'incorrect');
+                    return;
+                }
+                
+                let config = trueVals[id];
+                let trueVal = config.val;
+                if (trueVal === 0) return; // Chưa có data để kiểm tra
+
+                let isCorrect = false;
+                if (config.mode === 'exact') {
+                    isCorrect = Math.abs(val - trueVal) <= config.tol;
+                } else if (config.mode === 'angle') {
+                    isCorrect = Math.abs(val - trueVal) <= config.tol;
+                } else {
+                    isCorrect = Math.abs((val - trueVal)/trueVal) <= config.tol;
+                }
+
+                if(isCorrect) {
+                    el.classList.remove('incorrect'); el.classList.add('correct');
+                    // Tự động chép kết quả đã đúng xuống các bước công thức tiếp theo
+                    if(id === 'inp_phiM') document.getElementById('form_sub_phiM').innerText = val;
+                    if(id === 'inp_phiN') document.getElementById('form_sub_phiN').innerText = val;
+                    if(id === 'inp_phiMN') document.getElementById('calc_phiMN_sub').innerText = val;
+                    if(id === 'inp_Mz') document.getElementById('calc_Mz_sub').innerText = val;
+                    if(id === 'inp_Ip') document.getElementById('calc_Ip_sub').innerText = val;
+                    
+                    // Logic mở khóa câu hỏi ôn tập
+                    if(id === 'inp_error') {
+                        document.getElementById('review-placeholder').classList.add('hidden');
+                        document.getElementById('review-questions').classList.remove('hidden');
+                    }
+                } else {
+                    el.classList.remove('correct'); el.classList.add('incorrect');
+                    
+                    // Đóng câu hỏi nếu nhập lại sai
+                    if(id === 'inp_error') {
+                        document.getElementById('review-placeholder').classList.remove('hidden');
+                        document.getElementById('review-questions').classList.add('hidden');
+                    }
+                }
+            });
+        });
+    }
+
+    // Chạy lại hiệu ứng kiểm tra tức thời khi có thông số mới cập nhật
+    function triggerValidationChecks() {
+        Object.keys(trueVals).forEach(id => {
+            let el = document.getElementById(id);
+            if(el && el.value !== "") el.dispatchEvent(new Event('input'));
+        });
+    }
+
+    document.getElementById('btn_record').addEventListener('click', () => {
+        if(!dimensionsValidated) { alert("Bạn cần phải gõ thông số 'Đo kích thước' trước khi bắt đầu lấy số liệu!"); return; }
+        if(currentStep >= targetLoads.length) { alert("Bảng số liệu đã được ghi đầy đủ!"); return; }
+        if(params.P !== targetLoads[currentStep]) {
+            alert(`Lần đo thứ ${currentStep} yêu cầu mức tải trọng là ${targetLoads[currentStep]} kG.\nVui lòng điều chỉnh tải trọng trước khi ghi.`); return;
+        }
+        
+        // Giá trị mô phỏng thực tế
+        let valM = parseFloat(document.getElementById('out_absM').innerText);
+        let valN = parseFloat(document.getElementById('out_absN').innerText);
+        let isManual = (currentStep % 2 !== 0);
+
+        // Kiểm tra đối chiếu nếu là dòng Manual
+        if (isManual) {
+            let userM = parseFloat(document.getElementById(`inp_m_read_${currentStep}`).value);
+            let userN = parseFloat(document.getElementById(`inp_n_read_${currentStep}`).value);
+
+            if (isNaN(userM) || isNaN(userN) || Math.abs(userM - valM) > 0.2 || Math.abs(userN - valN) > 0.2) {
+                alert("Số đọc trên đồng hồ chưa chính xác.\nVui lòng quan sát kỹ kim trên mặt đồng hồ M và N (sai số cho phép ±0.2 vạch).");
+                return; // Dừng, không cho qua bước
+            }
+            // Nếu đúng, biến input thành text bình thường
+            document.getElementById(`cell_m_read_${currentStep}`).innerHTML = `<span id="m_read_${currentStep}">${valM.toFixed(1)}</span>`;
+            document.getElementById(`cell_n_read_${currentStep}`).innerHTML = `<span id="n_read_${currentStep}">${valN.toFixed(1)}</span>`;
+        } else {
+            // Auto điền cho dòng tự động
+            document.getElementById(`m_read_${currentStep}`).innerText = valM.toFixed(1);
+            document.getElementById(`n_read_${currentStep}`).innerText = valN.toFixed(1);
+        }
+        
+        let deltaM = "-";
+        let deltaN = "-";
+        
+        if (currentStep > 0) {
+            let prevM = parseFloat(document.getElementById(`m_read_${currentStep - 1}`).innerText);
+            let prevN = parseFloat(document.getElementById(`n_read_${currentStep - 1}`).innerText);
+            
+            deltaM = Math.abs(valM - prevM).toFixed(1);
+            deltaN = Math.abs(valN - prevN).toFixed(1);
+
+            // Cộng dồn vào tổng số gia
+            sum_delta_M += parseFloat(deltaM);
+            sum_delta_N += parseFloat(deltaN);
+        }
+        
+        document.getElementById(`m_delta_${currentStep}`).innerText = deltaM;
+        document.getElementById(`n_delta_${currentStep}`).innerText = deltaN;
+        
+        currentStep++; 
+        updateFormulaUI();
+        triggerValidationChecks();
+        updateTableHighlight();
+    });
+
+    document.getElementById('btn_clear_table').addEventListener('click', () => {
+        if(confirm("Bạn có chắc chắn muốn xóa toàn bộ bảng và tổng số gia không?")) {
+            currentStep = 0; initTable();
+            // Xóa luôn các ô tính tay
+            ['inp_phiM', 'inp_phiN', 'inp_phiMN', 'inp_Mz', 'inp_Ip', 'inp_Gtn', 'inp_error'].forEach(id => {
+                let el = document.getElementById(id);
+                if(el) { el.value = ""; el.classList.remove('correct', 'incorrect'); }
+            });
+            document.getElementById('form_sub_phiM').innerText = "?";
+            document.getElementById('form_sub_phiN').innerText = "?";
+            document.getElementById('calc_phiMN_sub').innerText = "φ";
+            document.getElementById('calc_Mz_sub').innerText = "M_z";
+            document.getElementById('calc_Ip_sub').innerText = "J_0";
+            
+            // Xóa các số liệu mô phỏng rác chưa đo lại
+            document.getElementById('calc_L_sub').innerText = "L";
+            document.getElementById('calc_D_sub').innerText = "D";
+            document.getElementById('calc_d_sub').innerText = "d";
+            document.getElementById('calc_Mz_a').innerText = "a";
+            document.getElementById('form_sum_M').innerText = "0.0";
+            document.getElementById('form_bM').innerText = "b_M";
+            document.getElementById('form_sum_N').innerText = "0.0";
+            document.getElementById('form_bN').innerText = "b_N";
+            
+            // Đóng câu hỏi ôn tập và xóa textareas
+            document.getElementById('review-placeholder').classList.remove('hidden');
+            document.getElementById('review-questions').classList.add('hidden');
+            document.querySelectorAll('textarea').forEach(ta => ta.value = '');
+        }
+    });
+
+    initTable();
+    initValidationListeners(); // Gắn trình theo dõi lỗi tính toán ngay khi khởi động
+</script>
+</body>
+</html>
